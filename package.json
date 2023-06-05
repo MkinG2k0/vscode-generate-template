@@ -16,6 +16,10 @@
 	"contributes": {
 		"commands": [
 			{
+				"command": "generate-template.save-global-path",
+				"title": "Save global path"
+			},
+			{
 				"command": "generate-template.generate",
 				"title": "Generate"
 			}
@@ -59,6 +63,7 @@
 	},
 	"dependencies": {
 		"@types/markdown-it": "^12.2.3",
+		"js-convert-case": "^4.2.0",
 		"markdown-it": "^13.0.1",
 		"recursive-readdir": "^2.2.3"
 	}
