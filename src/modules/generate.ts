@@ -22,16 +22,21 @@ interface IStruct {
 }
 
 export class Generate {
-	variable: { from: string; to: string }[] = []
+	// localVar
+	// pathToFile , pathToDir ,
+	globalVariable: { from: string; to: string }[] = []
 	constructor(private readonly ctx: vscode.ExtensionContext) {}
 
-	dialog(folder: { path: string }, e: any) {
-		const templates = this.getLocalTemplates()
-		const select = vscode.window.showQuickPick(templates)
+	async dialog(folder: { path: string }, e: any) {
+		const localTemplates = await this.getLocalTemplates()
+		const globalTemplates = await this.getGlobalTemplates()
+		const templates = [...new Set(localTemplates.concat(globalTemplates))]
 
-		select.then(selectTemplate => {
+		const select = vscode.window.showQuickPick(templates, { title: 'Choose template' })
+
+		select.then((selectTemplate) => {
 			const name = vscode.window.showInputBox({ title: 'Generate template name' })
-			name.then(selectName => {
+			name.then((selectName) => {
 				this.generate({ selectTemplate, selectName, folder })
 			})
 		})
@@ -42,33 +47,42 @@ export class Generate {
 		if (!selectTemplate || !selectName) {
 			return
 		}
-		this.createVariable(selectName)
-		const workspacePath = this.getWorkspacePath()
-		const localPath = path.join(workspacePath, LOCAL_PATH_FOLDER, selectTemplate)
+
+		this.createGlobalVariable(selectName)
+		const workspacePathTemplates = this.getWorkspacePath()
+		const globalPathTemplates = this.getGlobalTemplatesPath()
+		const localPath = path.join(workspacePathTemplates, LOCAL_PATH_FOLDER, selectTemplate)
+		const globalPath = path.join(globalPathTemplates, selectTemplate)
+
+		const isExistLocal = await this.isExist(localPath)
+		const isExistGlobal = await this.isExist(globalPath)
+
 		const generatePath = path.join(folder.path, selectName).slice(1)
 
-		const structure = await this.structure(localPath, data)
+		const structure = await this.structure(isExistLocal ? localPath : globalPath, data)
 		await this.writeStructure(structure, generatePath)
 
 		// vscode.window.showInformationMessage(`Generated in path "${generatePath}"`)
 	}
 
+	async isExist(path: string) {
+		return await fs
+			.access(path)
+			.then(() => true)
+			.catch(() => false)
+	}
+
 	async structure(localPathTemplates: string, generate: IGenerate) {
 		const paths = await recursive(localPathTemplates)
 
-		const structure = paths.map(async pathFile => {
+		const structure = paths.map(async (pathFile) => {
 			const pathParse = path.parse(pathFile)
 			const { name } = pathParse
 
 			const dataFile = await fs.readFile(pathFile, 'utf8')
 			const findExt = dataFile.match(/```.*/)
 			const dirName = path.dirname(pathFile)
-
-			// const localPath = pathFile
-			// 	.split(LOCAL_PATH_FOLDER)[1]
-			// 	.split(generate.selectTemplate || '')[1]
-			// 	.slice(1)
-
+			const isMdFile = pathParse.ext === '.md'
 			// split 2
 			const localPath = dirName.split(LOCAL_PATH_FOLDER)[1].split(path.sep).slice(2).join(path.sep)
 
@@ -78,7 +92,8 @@ export class Generate {
 				.slice(1, -1)
 				.join('')
 
-			const codeWithVar = this.dataVariable(code)
+			const mdFileOrOtherFile = isMdFile ? code : dataFile
+			const codeWithVar = this.dataVariable(mdFileOrOtherFile)
 
 			const currentExt = findExt?.[0]
 			const ext = currentExt ? '.'.concat(currentExt.slice(3)) : pathParse.ext
@@ -92,7 +107,7 @@ export class Generate {
 				ext,
 				fullName,
 				code: codeWithVar,
-				data: dataFile
+				data: dataFile,
 			}
 		})
 
@@ -101,32 +116,37 @@ export class Generate {
 
 	dataVariable(data: string) {
 		let str = data
-		this.variable.forEach(({ from, to }) => {
-			const reg = new RegExp(from, 'g')
-			str = str.replace(from, to)
+		this.globalVariable.forEach(({ from, to }) => {
+			const reg = new RegExp(this.saveRegExp(from), 'g')
+			str = str.replace(reg, to)
 		})
-		console.log(str)
 		return str
 	}
 
-	createVariable(name: string) {
-		this.variable = [
-			{ from: '$name$', to: name },
-			{ from: '$upper$', to: name.toUpperCase() },
-			{ from: '$lower$', to: name.toLowerCase() },
-			{ from: '$camel$', to: toCase.toCamelCase(name) },
-			{ from: '$pascal$', to: toCase.toPascalCase(name) },
-			{ from: '$snake$', to: toCase.toSnakeCase(name) },
-			{ from: '$upperSnake$', to: toCase.toCamelCase(name).toUpperCase() },
-			{ from: '$kebab$', to: toCase.toKebabCase(name) },
-			{ from: '$upperKebab$', to: toCase.toCamelCase(name).toUpperCase() },
-			{ from: '$dot$', to: toCase.toDotCase(name) },
-			{ from: '$upperDot$', to: toCase.toCamelCase(name).toUpperCase() }
+	saveRegExp(text: string) {
+		return `\\$${text}\\$`
+	}
+
+	createGlobalVariable(name: string) {
+		this.globalVariable = [
+			{ from: 'name', to: name },
+			{ from: 'upper', to: name.toUpperCase() },
+			{ from: 'lower', to: name.toLowerCase() },
+			{ from: 'camel', to: toCase.toCamelCase(name) },
+			{ from: 'pascal', to: toCase.toPascalCase(name) },
+			{ from: 'snake', to: toCase.toSnakeCase(name) },
+			{ from: 'upperSnake', to: toCase.toCamelCase(name).toUpperCase() },
+			{ from: 'kebab', to: toCase.toKebabCase(name) },
+			{ from: 'upperKebab', to: toCase.toCamelCase(name).toUpperCase() },
+			{ from: 'dot', to: toCase.toDotCase(name) },
+			{ from: 'upperDot', to: toCase.toCamelCase(name).toUpperCase() },
+			//
+			{ from: 'time', to: new Date().toString() },
 		]
 	}
 
 	async writeStructure(structures: IStruct[], generatePath: string) {
-		await structures.forEach(async structure => {
+		await structures.forEach(async (structure) => {
 			const join = path.join(generatePath, structure.localPath, structure.fullName)
 			await this.writeFile(join, structure.code)
 		})
@@ -161,13 +181,13 @@ export class Generate {
 			.then(async () => {
 				return await fs
 					.readdir(templatePath)
-					.then(files => files)
-					.catch(e => {
+					.then((files) => files)
+					.catch((e) => {
 						logger(`Чтение в папке "${templatePath}"`)(e)
 						return []
 					})
 			})
-			.catch(e => {
+			.catch((e) => {
 				logger(`Доступ к папке "${templatePath}"`)(e)
 				return []
 			})

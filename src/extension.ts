@@ -13,11 +13,13 @@ export function activate(ctx: vscode.ExtensionContext) {
 		generate.dialog(path, e)
 	)
 
-	let saveGlobalPath = vscode.commands.registerCommand('generate-template.save-global-path', (path, e) => {
-		const globalPath = vscode.workspace.workspaceFolders?.[0].uri.fsPath || ''
-		ctx.globalState.update(GLOBAL_PATH_KEY, globalPath)
-
-		vscode.window.showInformationMessage(`"${ctx.globalState.get(GLOBAL_PATH_KEY) || ''}" path saved`)
+	let saveGlobalPath = vscode.commands.registerCommand('generate-template.save-global-path', () => {
+		const textBox = vscode.window.showInputBox()
+		textBox.then((text) => {
+			ctx.globalState.update(GLOBAL_PATH_KEY, text)
+		})
+		// const globalPath = vscode.workspace.workspaceFolders?.[0].uri.fsPath || ''
+		// vscode.window.showInformationMessage(`"${ctx.globalState.get(GLOBAL_PATH_KEY) || ''}" path saved`)
 	})
 
 	ctx.subscriptions.push(generateCommand)
