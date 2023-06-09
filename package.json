@@ -2,6 +2,7 @@
 	"name": "generate-template",
 	"displayName": "generate template",
 	"description": "generator code",
+	"publisher": "mking",
 	"version": "0.0.1",
 	"engines": {
 		"vscode": "^1.78.0"
@@ -10,7 +11,8 @@
 		"Other"
 	],
 	"activationEvents": [
-		"*"
+		"onCommand:extension.save-global-path",
+		"onCommand:extension.generate"
 	],
 	"main": "./dist/extension.js",
 	"contributes": {
@@ -34,7 +36,7 @@
 		}
 	},
 	"scripts": {
-		"vscode:prepublish": "pnpm run package",
+		"vscode:prepublish": "yarn run package",
 		"compile": "webpack",
 		"watch": "webpack --watch",
 		"package": "webpack --mode production --devtool hidden-source-map",
